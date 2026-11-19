@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Virtual Laboratoriya Platformasi — Elektro-zanjir, Kimyo va Paketlar</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts: Inter & Space Grotesk -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        labbg: '#0b1016',
+                        labcard: '#12141c',
+                        labblue: '#4f8cff',
+                        labgold: '#f0a54a',
+                        labgreen: '#4fd69a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b1016;
+            color: #e9eaf0;
+            overflow-x: hidden;
+        }
+        /* Glassmorphism — yanada shaffof, 3D partikllar yaxshi ko‘rinsin */
+        .glass-header {
+            background: rgba(11, 16, 22, 0.55);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .portal-card {
+            background: linear-gradient(155deg, rgba(22, 27, 40, 0.42) 0%, rgba(11, 16, 22, 0.55) 100%);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease, border-color 0.35s ease;
+            transform-style: preserve-3d;
+        }
+        .portal-phys:hover {
+            border-color: rgba(240, 165, 74, 0.65);
+            box-shadow: 0 24px 55px -12px rgba(240, 165, 74, 0.24);
+            background: linear-gradient(155deg, rgba(22, 27, 40, 0.55) 0%, rgba(11, 16, 22, 0.68) 100%);
+        }
+        .portal-chem:hover {
+            border-color: rgba(79, 214, 154, 0.65);
+            box-shadow: 0 24px 55px -12px rgba(79, 214, 154, 0.24);
+            background: linear-gradient(155deg, rgba(22, 27, 40, 0.55) 0%, rgba(11, 16, 22, 0.68) 100%);
+        }
+        .portal-pack:hover {
+            border-color: rgba(79, 140, 255, 0.75);
+            box-shadow: 0 26px 60px -12px rgba(79, 140, 255, 0.32);
+            background: linear-gradient(155deg, rgba(22, 27, 40, 0.55) 0%, rgba(11, 16, 22, 0.68) 100%);
+        }
+        .soon-card {
+            background: rgba(18, 20, 28, 0.38);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            transition: all 0.25s ease;
+        }
+        .soon-card:hover {
+            border-color: rgba(79, 140, 255, 0.35);
+            transform: translateY(-3px);
+            background: rgba(22, 26, 38, 0.55);
+        }
+        #bg-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+        @keyframes pulsePlus {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(79, 140, 255, 0.5), 0 0 50px rgba(79, 214, 154, 0.2); }
+            50% { transform: scale(1.06); box-shadow: 0 0 38px rgba(79, 140, 255, 0.8), 0 0 65px rgba(240, 165, 74, 0.35); }
+        }
+        .plus-emblem {
+            animation: pulsePlus 3s infinite ease-in-out;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1016; }
+        ::-webkit-scrollbar-thumb { background: #243344; border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b526d; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col justify-between selection:bg-labblue selection:text-white">
+
+    <!-- Jonli 3D Zarrachalar va Tugunlar Orqa Foni -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- 1. HEADER -->
+    <header class="sticky top-0 z-40 glass-header">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+            <a href="#" class="flex items-center gap-3.5 group">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-labblue via-labgreen to-labgold p-[1.5px] shadow-lg shadow-labblue/20 group-hover:scale-105 transition-transform">
+                    <div class="w-full h-full bg-labbg rounded-[14px] flex items-center justify-center">
+                        <i class="fa-solid fa-atom text-xl text-transparent bg-clip-text bg-gradient-to-r from-labblue to-labgreen"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg sm:text-xl tracking-tight text-white leading-tight">
+                        3D Virtual Laboratoriya <span class="text-labblue">Platformasi</span>
+                    </h1>
+                    <p class="text-[11px] sm:text-xs text-slate-400">
+                        Elektro-zanjir konstruktori, 3D kimyoviy tajribalar va kengaytma paketlar tizimi
+                    </p>
+                </div>
+            </a>
+
+            <!-- Tezkor Navigatsiya Tugmalari -->
+            <div class="flex items-center gap-2.5">
+                <a href="Qo'shimcha Paketlar Tizimi - Bepul Kengaytmalar.html" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-labblue/15 hover:bg-labblue/25 border border-labblue/40 text-xs sm:text-sm font-semibold text-blue-200 transition">
+                    <span class="w-5 h-5 rounded-lg bg-gradient-to-tr from-labblue to-labgreen text-slate-950 font-black flex items-center justify-center text-sm">+</span>
+                    <span class="hidden sm:inline">Bepul Paketlar</span>
+                    <span class="sm:hidden">Paketlar</span>
+                </a>
+                <a href="#coming-soon" class="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800/70 hover:bg-slate-800 border border-slate-700/80 text-xs font-medium text-slate-300 transition">
+                    <i class="fa-solid fa-sparkles text-labgold"></i>
+                    <span>Tez orada</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ASOSIY KONTENT -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-full flex-grow space-y-16">
+
+        <!-- Kirish Sarlavhasi -->
+        <section class="text-center max-w-3xl mx-auto">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-xs font-medium text-slate-300 mb-4">
+                <span class="w-2 h-2 rounded-full bg-labgreen animate-pulse"></span>
+                <span>Aniq ilmiy modellar • 2D/3D simulyatsiya • Kengaytiriladigan ekotizim</span>
+            </div>
+            <h2 class="font-display text-3xl sm:text-5xl font-bold tracking-tight text-white mb-4 leading-tight">
+                Virtual <span class="text-labgold">Elektro-Zanjir</span> va <span class="text-labgreen">3D Kimyo</span> Muhiti
+            </h2>
+            <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+                O‘zingizga kerakli laboratoriya modulini ishga tushiring yoki <strong class="text-labblue">+ Qo‘shimcha Paketlar Tizimi</strong> orqali tayyor kengaytma va sxemalarni bepul yuklab oling.
+            </p>
+        </section>
+
+        <!-- 2. ASOSIY 3 TA LOYIHA PORTALI -->
+        <section aria-label="Asosiy loyihalar portali" class="grid grid-cols-1 lg:grid-cols-3 gap-7 items-stretch">
+
+            <!-- 1-PORTAL: ELEKTRO ZANJIRLAR KONSTRUKTORI (2D + 3D) -->
+            <article onmousemove="tiltCard(event, this)" onmouseleave="resetTilt(this)"
+                     class="portal-card portal-phys rounded-3xl p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden group">
+                
+                <div class="absolute -top-24 -right-24 w-52 h-52 rounded-full bg-labgold/15 blur-3xl group-hover:bg-labgold/25 transition-all pointer-events-none"></div>
+
+                <div>
+                    <!-- Yuqori nishon -->
+                    <div class="flex items-center justify-between gap-2 mb-4">
+                        <span class="px-3 py-1 rounded-xl bg-labgold/15 border border-labgold/35 text-labgold text-xs font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-bolt"></i> Fizika • Elektro-Zanjir
+                        </span>
+                        <span class="text-[11px] font-mono text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-800">
+                            Batareya Creator V2
+                        </span>
+                    </div>
+
+                    <!-- Jonli 3D Zanjir Mini Vizualizatsiyasi -->
+                    <div class="relative w-full h-44 rounded-2xl bg-slate-950/45 border border-slate-800/60 mb-5 overflow-hidden backdrop-blur-sm">
+                        <div id="mini-3d-circuit" class="w-full h-full"></div>
+                        <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[10px] font-mono text-amber-200/90 bg-slate-900/60 backdrop-blur px-2.5 py-1 rounded-lg border border-labgold/25">
+                            <span>I = U / R  •  P = U · I</span>
+                            <span class="text-labgold font-bold">2D → 3D</span>
+                        </div>
+                    </div>
+
+                    <!-- Sarlavha va Haqqoniy Tavsif -->
+                    <h3 class="font-display text-2xl font-bold text-white mb-2.5 group-hover:text-labgold transition-colors">
+                        Elektro Zanjirlar Konstruktori (2D + 3D)
+                    </h3>
+                    <p class="text-xs sm:text-[13.5px] text-slate-300 leading-relaxed mb-4">
+                        Faqat elektro-zanjir tuzilmalari uchun maxsus laboratoriya. <strong class="text-white">Batareya, akkumulyator, quyosh paneli, 220V generator</strong> kabi manbalar; <strong class="text-white">lampochka, LED, motor, bolgarka, choynak</strong> yuklamalari; rezistor, reostat va kondensatorlarni ulang.
+                    </p>
+
+                    <!-- Aniq Texnik Xususiyatlar -->
+                    <ul class="space-y-2 text-xs text-slate-300 mb-6 bg-slate-900/30 p-3.5 rounded-2xl border border-slate-800/50 backdrop-blur-sm">
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-gauge-high text-labgold mt-0.5"></i>
+                            <span>Voltmetr va ampermetr o‘lchovlari, Om qonuni (I = U/R, P = U·I) hisob-kitoblari</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-fire-flame-curved text-red-400 mt-0.5"></i>
+                            <span>Simlarning material (Cu, Al, Nixrom) va qalinligiga qarab qizib kuyishi</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-cube text-labblue mt-0.5"></i>
+                            <span>2D sxemani bir tugma bilan jonli 3D ko‘rinishga o‘tkazish</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Ochish Tugmasi — to‘g‘ridan-to‘g‘ri faylga yo‘naltirish -->
+                <a href="Batareya Creator V2 + 3D.html"
+                   class="w-full py-3.5 px-5 rounded-2xl font-bold text-sm bg-gradient-to-r from-labgold to-amber-500 hover:brightness-110 text-slate-950 transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-labgold/20">
+                    <span>Laboratoriyani ochish</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+            </article>
+
+            <!-- 2-PORTAL: 3D KIMYOVIY TAJRIBALAR LABORATORIYASI -->
+            <article onmousemove="tiltCard(event, this)" onmouseleave="resetTilt(this)"
+                     class="portal-card portal-chem rounded-3xl p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden group">
+                
+                <div class="absolute -top-24 -right-24 w-52 h-52 rounded-full bg-labgreen/15 blur-3xl group-hover:bg-labgreen/25 transition-all pointer-events-none"></div>
+
+                <div>
+                    <!-- Yuqori nishon -->
+                    <div class="flex items-center justify-between gap-2 mb-4">
+                        <span class="px-3 py-1 rounded-xl bg-labgreen/15 border border-labgreen/35 text-labgreen text-xs font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-flask-vial"></i> Kimyo • 3D Reaksiyalar
+                        </span>
+                        <span class="text-[11px] font-mono text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-800">
+                            kimyo-labv4.html
+                        </span>
+                    </div>
+
+                    <!-- Jonli 3D Kimyo Mini Vizualizatsiyasi -->
+                    <div class="relative w-full h-44 rounded-2xl bg-slate-950/45 border border-slate-800/60 mb-5 overflow-hidden backdrop-blur-sm">
+                        <div id="mini-3d-chem" class="w-full h-full"></div>
+                        <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[10px] font-mono text-emerald-200/90 bg-slate-900/60 backdrop-blur px-2.5 py-1 rounded-lg border border-labgreen/25">
+                            <span>pH 0–14 • Cho‘kma • Gaz</span>
+                            <span class="text-labgreen font-bold">KL.extension</span>
+                        </div>
+                    </div>
+
+                    <!-- Sarlavha va Haqqoniy Tavsif -->
+                    <h3 class="font-display text-2xl font-bold text-white mb-2.5 group-hover:text-labgreen transition-colors">
+                        3D Kimyoviy Tajribalar Laboratoriyasi
+                    </h3>
+                    <p class="text-xs sm:text-[13.5px] text-slate-300 leading-relaxed mb-4">
+                        Faqat kimyoviy tajribalar muhiti. <strong class="text-white">Stakan, kolba va probirkalarda</strong> moddalarni quyish va aralashtirish, <strong class="text-white">pH indikatorlar</strong> (Universal, Fenolftalein), rangli cho‘kmalar (Cu(OH)₂, AgCl, PbI₂), gaz va issiqlik ajralishini kuzating.
+                    </p>
+
+                    <!-- Aniq Texnik Xususiyatlar -->
+                    <ul class="space-y-2 text-xs text-slate-300 mb-6 bg-slate-900/30 p-3.5 rounded-2xl border border-slate-800/50 backdrop-blur-sm">
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-temperature-three-quarters text-labgreen mt-0.5"></i>
+                            <span>3D qurilmalar: qizdirgich plita, muz vannasi, magnit aralashtirgich, UV lampa, tarozi</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-vial-circle-check text-emerald-300 mt-0.5"></i>
+                            <span>Real pH o‘zgarishi, rangli cho‘kmalar va ekzotermik issiqlik reaksiyalari</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-puzzle-piece text-labblue mt-0.5"></i>
+                            <span>KL.extension (.js / .json) orqali yangi modda va reaksiyalar qo‘shish</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Ochish Tugmasi — to‘g‘ridan-to‘g‘ri faylga yo‘naltirish -->
+                <a href="kimyo-labv4.html"
+                   class="w-full py-3.5 px-5 rounded-2xl font-bold text-sm bg-gradient-to-r from-labgreen to-emerald-400 hover:brightness-110 text-slate-950 transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-labgreen/20">
+                    <span>Laboratoriyani ochish</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+            </article>
+
+            <!-- 3-PORTAL: QO'SHIMCHA PAKETLAR TIZIMI (+ BELGISI BILAN) -->
+            <article onmousemove="tiltCard(event, this)" onmouseleave="resetTilt(this)"
+                     class="portal-card portal-pack rounded-3xl p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden group border-labblue/40">
+                
+                <div class="absolute -top-24 -right-24 w-56 h-56 rounded-full bg-labblue/20 blur-3xl group-hover:bg-labblue/35 transition-all pointer-events-none"></div>
+
+                <div>
+                    <!-- Yuqori nishon -->
+                    <div class="flex items-center justify-between gap-2 mb-4">
+                        <span class="px-3 py-1 rounded-xl bg-labblue/20 border border-labblue/45 text-blue-200 text-xs font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-cubes-stacked text-labblue"></i> Kengaytmalar Markazi
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-labgreen/20 border border-labgreen/40 text-labgreen text-[11px] font-bold">
+                            100% BEPUL
+                        </span>
+                    </div>
+
+                    <!-- MARKAZIDA YORQIN, KATTA VA CHIROYLI "+" (PLYUS) BELGISI -->
+                    <a href="Qo'shimcha Paketlar Tizimi - Bepul Kengaytmalar.html" class="relative w-full h-44 rounded-2xl bg-gradient-to-br from-slate-950/70 via-[#101829]/80 to-slate-950/70 border border-labblue/35 mb-5 overflow-hidden flex flex-col items-center justify-center cursor-pointer group/plus">
+                        <!-- Fon setkasi -->
+                        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#4f8cff 1px, transparent 1px); background-size: 16px 16px;"></div>
+                        
+                        <!-- Katta Yorqin "+" Nishoni -->
+                        <div class="relative w-20 h-20 rounded-3xl bg-gradient-to-tr from-labblue via-indigo-500 to-labgreen p-[2px] plus-emblem group-hover/plus:scale-110 transition-transform">
+                            <div class="w-full h-full rounded-[22px] bg-slate-950/70 flex items-center justify-center">
+                                <i class="fa-solid fa-plus text-4xl sm:text-5xl text-transparent bg-clip-text bg-gradient-to-tr from-labblue via-white to-labgreen font-black"></i>
+                            </div>
+                        </div>
+
+                        <span class="mt-3 text-[11px] font-semibold tracking-wide text-blue-200 bg-labblue/15 px-3 py-0.5 rounded-full border border-labblue/30">
+                            .JS / .JSON Kengaytmalar & Sxemalar
+                        </span>
+                    </a>
+
+                    <!-- Sarlavha va To'liq Tavsif -->
+                    <div class="flex items-center gap-2.5 mb-2.5">
+                        <h3 class="font-display text-2xl font-bold text-white group-hover:text-labblue transition-colors">
+                            Qo‘shimcha Paketlar Tizimi
+                        </h3>
+                        <span class="w-7 h-7 rounded-lg bg-labblue/20 border border-labblue/50 text-labblue font-black flex items-center justify-center text-lg">+</span>
+                    </div>
+
+                    <p class="text-xs sm:text-[13px] text-slate-300 leading-relaxed mb-5">
+                        <strong class="text-blue-200">Kimyo va fizika muhitlari uchun kerakli qoʻshimcha paketlar! Bepul yuklab oling.</strong> Ushbu tizim orqali kimyo laboratoriyasiga yangi moddalar, reaksiyalar, 3D idishlar va asboblar qo‘shuvchi tayyor <code class="text-labgreen bg-slate-900 px-1.5 py-0.5 rounded">.js / .json</code> kengaytmalarni (extension), shuningdek elektro-zanjir konstruktori uchun tayyor murakkab sxema paketlarini mutlaqo bepul yuklab olishingiz va o‘z loyihalaringizga bir necha soniyada o‘rnatishingiz mumkin.
+                    </p>
+                </div>
+
+                <!-- Paketlar Markazini Ochish Tugmasi — to‘g‘ridan-to‘g‘ri faylga yo‘naltirish -->
+                <a href="Qo'shimcha Paketlar Tizimi - Bepul Kengaytmalar.html"
+                   class="w-full py-3.5 px-5 rounded-2xl font-bold text-sm bg-gradient-to-r from-labblue via-blue-500 to-indigo-500 hover:brightness-110 text-white transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-labblue/30">
+                    <span>Paketlar markazini ochish (+)</span>
+                    <i class="fa-solid fa-download"></i>
+                </a>
+            </article>
+
+        </section>
+
+        <!-- 3. "TEZ ORADA" (COMING SOON) BO'LIMI -->
+        <section id="coming-soon" class="pt-6 border-t border-slate-800/80">
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+                <div>
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-labgold/15 border border-labgold/30 text-labgold text-xs font-semibold mb-2">
+                        <i class="fa-solid fa-rocket"></i> Yo‘l xaritasi (Roadmap)
+                    </div>
+                    <h2 class="font-display text-2xl sm:text-3xl font-bold text-white">
+                        Tez orada qo‘shiladigan yangi imkoniyatlar
+                    </h2>
+                </div>
+                <p class="text-xs sm:text-sm text-slate-400 max-w-md">
+                    Platformamiz doimiy rivojlanmoqda. Quyidagi yangi modullar tayyorlanmoqda — birinchilardan bo‘lib sinab ko‘rish uchun bildirishnomani yoqing.
+                </p>
+            </div>
+
+            <!-- 6 ta Yangi Funksiya Kartochkalari -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+                <!-- 1. Mexanika va Kinematika 3D -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-500/15 text-labgold flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-compass-drafting"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-amber-300 text-[11px] font-semibold border border-amber-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">1. Mexanika va Kinematika 3D</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Gravitatsiya, mayatniklar, qiya tekislik, ishqalanish kuchi va jismlarning elastik to‘qnashuvini real 3D fizik dvigatelda modellashtirish.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Mexanika va Kinematika 3D', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+                <!-- 2. Optika va Lazer Nurlari -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-sun"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-sky-300 text-[11px] font-semibold border border-sky-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">2. Optika va Lazer Nurlari</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Yorug‘lik nurlarining prizmada sinishi, qavariq va botiq linzalar tizimi, ko‘zgular va lazer interferensiyasini 3D fazoda tekshirish.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Optika va Lazer Nurlari', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+                <!-- 3. Molekulyar 3D Konstruktor -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/15 text-labgreen flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-dna"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-emerald-300 text-[11px] font-semibold border border-emerald-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">3. Molekulyar 3D Konstruktor</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Atomlarni o‘zaro kovalent va ion bog‘lar bilan biriktirib, organik molekulalar va kristall panjaralarni 3D shaklda yig‘ish muhiti.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Molekulyar 3D Konstruktor', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+                <!-- 4. Virtual AI Laborant Yordamchi -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-robot"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-purple-300 text-[11px] font-semibold border border-purple-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">4. Virtual AI Laborant Yordamchi</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Zanjirdagi qisqa tutashuv sabablarini tushuntiruvchi va kimyoviy reaksiyalar tenglamalarini avtomatik balanslab beruvchi sun’iy intellekt.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Virtual AI Laborant Yordamchi', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+                <!-- 5. Sinfxona (Multiplayer) Rejimi -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/15 text-labblue flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-users-viewfinder"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-blue-300 text-[11px] font-semibold border border-blue-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">5. Sinfxona (Multiplayer) Rejimi</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            O‘qituvchi va o‘quvchilarning bitta virtual laboratoriya stolida real vaqtda birgalikda sxema yig‘ishi va kimyoviy tajriba o‘tkazishi.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Sinfxona (Multiplayer) Rejimi', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+                <!-- 6. Avtomatik PDF Laboratoriya Hisoboti -->
+                <div class="soon-card rounded-2xl p-5 flex flex-col justify-between gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full bg-slate-800 text-rose-300 text-[11px] font-semibold border border-rose-500/25">
+                                Tez orada
+                            </span>
+                        </div>
+                        <h3 class="font-display font-bold text-lg text-white mb-1.5">6. Avtomatik PDF Laboratoriya Hisoboti</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            O‘tkazilgan tajriba natijalari, voltmetr/ampermetr jadvallari, reaksiya tenglamalari va 3D skrinshotlarni tayyor PDF hisobotga eksport qilish.
+                        </p>
+                    </div>
+                    <button onclick="notifyFeature('Avtomatik PDF Laboratoriya Hisoboti', this)"
+                            class="w-full py-2.5 px-4 rounded-xl bg-slate-800/90 hover:bg-labblue hover:text-white border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-2">
+                        <i class="fa-regular fa-bell"></i>
+                        <span>Xabardor bo‘lish</span>
+                    </button>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-slate-800/60 bg-slate-950/50 backdrop-blur-md py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-labblue"></span>
+                <span>© 2026 <strong class="text-slate-200">3D Virtual Laboratoriya Platformasi</strong>. Barcha huquqlar himoyalangan.</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-4">
+                <a href="Batareya Creator V2 + 3D.html" class="hover:text-labgold transition">Batareya Creator V2 + 3D</a>
+                <span>•</span>
+                <a href="kimyo-labv4.html" class="hover:text-labgreen transition">Kimyo Lab V4</a>
+                <span>•</span>
+                <a href="Qo'shimcha Paketlar Tizimi - Bepul Kengaytmalar.html" class="hover:text-labblue transition">Paketlar Markazi (+)</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==========================================================
+         MODAL 1: LABORATORIYA PREVIEW VA ISHGA TUSHIRISH OYNASI
+         ========================================================== -->
+    <div id="lab-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div id="lab-modal-box" class="bg-[#12141c] border border-slate-700/80 rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl transform transition-all scale-95 opacity-0">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <span id="lm-badge" class="px-3 py-1 rounded-xl text-xs font-bold"></span>
+                    <span id="lm-file" class="text-xs font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800"></span>
+                </div>
+                <button onclick="closeLabModal()" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 space-y-5">
+                <div>
+                    <h3 id="lm-title" class="font-display text-2xl font-bold text-white mb-2"></h3>
+                    <p id="lm-desc" class="text-sm text-slate-300 leading-relaxed"></p>
+                </div>
+
+                <!-- Imkoniyatlar ro'yxati -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Loyihadagi mavjud komponent va funksiyalar:</h4>
+                    <div id="lm-features" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-200"></div>
+                </div>
+
+                <!-- Ishga tushirish holati / Yo'riqnoma -->
+                <div id="lm-status-box" class="hidden p-4 rounded-2xl bg-labblue/15 border border-labblue/40 text-xs text-blue-200 space-y-2">
+                    <div class="flex items-center gap-2 font-bold text-sm text-white">
+                        <i class="fa-solid fa-circle-notch fa-spin text-labblue"></i>
+                        <span id="lm-status-title">Muhit ishga tushirilmoqda...</span>
+                    </div>
+                    <p id="lm-status-text" class="leading-relaxed text-slate-300"></p>
+                </div>
+
+                <!-- Tugmalar -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button id="lm-launch-btn" onclick="launchLabEnvironment()" class="flex-1 py-3.5 px-5 rounded-2xl font-bold text-sm transition flex items-center justify-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-play"></i>
+                        <span>Hozir ishga tushirish</span>
+                    </button>
+                    <button onclick="closeLabModal()" class="py-3.5 px-5 rounded-2xl font-semibold text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+                        Yopish
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================
+         MODAL 2: QO'SHIMCHA PAKETLAR KATALOGI (+)
+         ========================================================== -->
+    <div id="pkg-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
+        <div id="pkg-modal-box" class="bg-[#12141c] border border-labblue/40 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl transform transition-all scale-95 opacity-0">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-800 shrink-0 bg-slate-950/60">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-labblue to-labgreen text-slate-950 font-black flex items-center justify-center text-xl shadow">
+                        +
+                    </div>
+                    <div>
+                        <h3 class="font-display font-bold text-lg sm:text-xl text-white">Qo‘shimcha Paketlar Katalogi</h3>
+                        <p class="text-[11px] sm:text-xs text-slate-400">Kimyo va fizika muhitlari uchun kerakli qoʻshimcha paketlar! Bepul yuklab oling.</p>
+                    </div>
+                </div>
+                <button onclick="closePackagesModal()" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="px-5 sm:px-6 py-3 bg-slate-900/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <button onclick="filterPackages('all')" id="tab-pkg-all" class="pkg-tab px-3.5 py-1.5 rounded-xl text-xs font-bold bg-labblue text-white transition">
+                        Barchasi (8)
+                    </button>
+                    <button onclick="filterPackages('chem')" id="tab-pkg-chem" class="pkg-tab px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-flask text-labgreen mr-1"></i> Kimyo Extension (.js / .json)
+                    </button>
+                    <button onclick="filterPackages('phys')" id="tab-pkg-phys" class="pkg-tab px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-bolt text-labgold mr-1"></i> Elektro-Zanjir Sxemalar (.json)
+                    </button>
+                </div>
+                <span class="text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-info text-labblue mr-1"></i> Yuklangan faylni laboratoriya menyusidan import qiling
+                </span>
+            </div>
+
+            <!-- Packages Grid -->
+            <div id="pkg-list-container" class="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- JavaScript orqali to'ldiriladi -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- TOAST BILDIRISHNOMA -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 bg-[#161b26] border border-labblue/50 px-4 py-3.5 rounded-2xl shadow-2xl text-sm text-white max-w-sm transform transition-all translate-y-4 opacity-0">
+        <div id="toast-icon" class="w-8 h-8 rounded-xl bg-labblue/20 text-labblue flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div>
+            <div id="toast-title" class="font-bold text-xs sm:text-sm text-white"></div>
+            <div id="toast-msg" class="text-[11px] sm:text-xs text-slate-400"></div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. HAQIQIY ISHLAYDIGAN KIMYO (KL.extension) VA ELEKTRO-ZANJIR PAKETLARI
+        // =========================================================================
+        const PACKAGES_DATA = [
+            // --- KIMYO UCHUN HAQIQIY KL.extension PAKETLARI ---
+            {
+                id: 'chem-kmno4',
+                category: 'chem',
+                badge: 'Kimyo Extension (.js)',
+                badgeStyle: 'bg-labgreen/15 text-labgreen border-labgreen/30',
+                filename: 'kaliy-permanganat-kmno4.js',
+                title: 'Kaliy Permanganat (KMnO₄) va O₂ Reaksiyasi',
+                desc: 'Kimyo laboratoriyasiga binafsha rangli Kaliy permanganat eritmasini hamda vodorod peroksid bilan rangsizlanib kislorod (O₂) ajratish reaksiyasini qo‘shadi.',
+                code: `KL.extension({
+  id: 'kaliy-permanganat',
+  name: 'Kaliy permanganat (KMnO₄)',
+  substances: [
+    { id: 'kmno4', name: 'Kaliy permanganat', formula: 'KMnO₄', type: 'l', color: '#8a1fd1' }
+  ],
+  reactions: [
+    {
+      a: 'kmno4',
+      b: 'h2o2',
+      make: { h2o: 1 },
+      rate: 2.5,
+      heat: 0.6,
+      fx: 'gas',
+      note: 'Binafsha rang yoʻqoldi va kislorod (O₂) ajralib chiqdi!'
+    }
+  ],
+  presets: [
+    {
+      id: 'kmno4-test',
+      name: 'Permanganat tajribasi',
+      note: 'Binafsha KMnO₄ ga vodorod peroksid quying',
+      a: ['big', { kmno4: 35 }],
+      b: ['small', { h2o2: 35 }]
+    }
+  ]
+});`
+            },
+            {
+                id: 'chem-iodine-starch',
+                category: 'chem',
+                badge: 'Kimyo Extension (.js)',
+                badgeStyle: 'bg-labgreen/15 text-labgreen border-labgreen/30',
+                filename: 'yod-va-kraxmal-reaksiyasi.js',
+                title: 'Yod + Kraxmal Sifat Reaksiyasi & Etanol',
+                desc: 'Yod eritmasi (I₂), kraxmal eritmasi, etanol hamda ular o‘rtasida hosil bo‘ladigan to‘q ko‘k yod-kraxmal kompleksini laboratoriyaga qo‘shadi.',
+                code: `KL.extension({
+  id: 'yod-kraxmal',
+  name: 'Yod + kraxmal & etanol',
+  substances: [
+    { id: 'etoh', name: 'Etanol', formula: 'C₂H₅OH', type: 'l', color: '#eef6ff' },
+    { id: 'yod', name: 'Yod eritmasi', formula: 'I₂', type: 'l', color: '#b5651d' },
+    { id: 'krax', name: 'Kraxmal eritmasi', formula: '(C₆H₁₀O₅)ₙ', type: 'l', color: '#f4f4ee' },
+    { id: 'kompl', name: 'Yod–kraxmal kompleksi', formula: 'I₂·kraxmal', type: 'l', color: '#15156e', hide: true }
+  ],
+  reactions: [
+    { a: 'yod', b: 'krax', make: { kompl: 1 }, rate: 6, note: 'Toʻq koʻk rang: kraxmal yod bilan reaksiyaga kirishdi!' },
+    { a: 'etoh', minT: 60, rate: 1.2, fx: 'smoke', note: 'Etanol 60°C dan yuqori haroratda bugʻlanmoqda' }
+  ],
+  presets: [
+    { id: 'yodtest', name: 'Yod sinovi', note: 'Kraxmal eritmasiga yod quying', a: ['big', { krax: 40 }], b: ['small', { yod: 25 }] }
+  ]
+});`
+            },
+            {
+                id: 'chem-vessels-pack',
+                category: 'chem',
+                badge: 'Kimyo Extension (.js)',
+                badgeStyle: 'bg-labgreen/15 text-labgreen border-labgreen/30',
+                filename: 'qoshimcha-3d-idishlar.js',
+                title: 'Yangi 3D Idishlar: Shar Kolba, Petri va Menzurka',
+                desc: 'Laboratoriya idishlari bo‘limiga 400 ml Shar kolba, Petri idishi va o‘lchov chiziqli 250 ml Menzurka 3D modellarini qo‘shadi.',
+                code: `KL.extension({
+  id: 'idishlar-paketi',
+  name: 'Shar kolba, Petri, Menzurka',
+  vessels: [
+    {
+      id: 'round',
+      name: 'Shar kolba',
+      rb: 0.9, rt: 0.3, h: 2.4, cap: 400,
+      build: (T, g) => {
+        const s = new T.Mesh(
+          new T.SphereGeometry(0.95, 24, 16),
+          new T.MeshPhongMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.14, depthWrite: false })
+        );
+        s.position.y = 0.95;
+        g.add(s);
+      }
+    },
+    { id: 'petri', name: 'Petri idishi', rb: 1.3, rt: 1.3, h: 0.5, cap: 60 },
+    { id: 'men250', name: 'Menzurka 250', rb: 0.45, rt: 0.45, h: 3.4, cap: 250 }
+  ]
+});`
+            },
+            {
+                id: 'chem-lightning-snow',
+                category: 'chem',
+                badge: 'Kimyo Extension (.json)',
+                badgeStyle: 'bg-labgreen/15 text-labgreen border-labgreen/30',
+                filename: 'bariy-sulfat-json-paket.json',
+                title: 'Bariy Xlorid (BaCl₂) va Oq Cho‘kma (JSON Paket)',
+                desc: 'Hech qanday JS kodsiz, to‘g‘ridan-to‘g‘ri JSON formatida Bariy xlorid va Mis kuporosi reaksiyasini (oq BaSO₄ cho‘kmasi) qo‘shuvchi paket.',
+                code: `{
+  "substances": [
+    { "id": "bacl2", "name": "Bariy xlorid", "formula": "BaCl₂", "type": "l", "color": "#eef2f4" },
+    { "id": "baso4", "name": "Bariy sulfat", "formula": "BaSO₄", "type": "s", "color": "#ffffff", "hide": true }
+  ],
+  "reactions": [
+    {
+      "a": "bacl2",
+      "b": "cuso4",
+      "make": { "baso4": 1 },
+      "rate": 6,
+      "note": "Oq BaSO₄ choʻkmasi hosil boʻldi!"
+    }
+  ]
+}`
+            },
+
+            // --- FIZIKA ELEKTRO-ZANJIR UCHUN TAYYOR JSON SXEMA PAKETLARI ---
+            {
+                id: 'phys-parallel-series',
+                category: 'phys',
+                badge: 'Elektro-Zanjir Sxema (.json)',
+                badgeStyle: 'bg-labgold/15 text-labgold border-labgold/35',
+                filename: 'parallel-va-ketma-ket-zanjir.json',
+                title: 'Parallel Ulangan Ikki Lampochka va Voltmetr',
+                desc: 'Batareya Creator V2 + 3D menyusidagi Import bo‘limiga joylashtirish uchun tayyor parallel ulanish va o‘lchov asboblari sxemasi.',
+                code: `{
+  "v": 2,
+  "sc": 1,
+  "c": [
+    ["bat", -200, 0, 1, 3, 1, 0],
+    ["sw", -80, -80, 0, 0, 1, 0],
+    ["bulb", 40, -80, 0, 0, 1, 0],
+    ["bulb", 40, 40, 0, 0, 1, 0],
+    ["vm", 160, -20, 1, 0, 1, 0]
+  ],
+  "w": [
+    [0, 2, 0, 1, "#f0a54a", 0],
+    [3, 4, 0, 1, "#ef5b5b", 0],
+    [3, 6, 0, 1, "#ef5b5b", 0],
+    [5, 1, 0, 1, "#4cc3ff", 0],
+    [7, 1, 0, 1, "#4cc3ff", 0],
+    [4, 8, 0, 0, "#5fd38d", 0],
+    [5, 9, 0, 0, "#5fd38d", 0]
+  ]
+}`
+            },
+            {
+                id: 'phys-rheostat-control',
+                category: 'phys',
+                badge: 'Elektro-Zanjir Sxema (.json)',
+                badgeStyle: 'bg-labgold/15 text-labgold border-labgold/35',
+                filename: 'reostat-yorqinlik-boshqaruvi.json',
+                title: 'Reostat va Ampermetr Bilan Yorqinlik Boshqaruvi',
+                desc: 'Reostat qarshiligini o‘zgartirish orqali lampochka yorqinligi va zanjirdagi tok kuchini (Ampermetr) real vaqtda kuzatish sxemasi.',
+                code: `{
+  "v": 2,
+  "sc": 1,
+  "c": [
+    ["bat", -160, 0, 1, 4, 1, 0],
+    ["rheo", -20, -80, 0, 2, 1, 0],
+    ["am", 120, -80, 0, 0, 1, 0],
+    ["bulb", 40, 80, 0, 0, 1, 0]
+  ],
+  "w": [
+    [0, 2, 0, 1, "#f0a54a", 0],
+    [3, 4, 0, 1, "#f0a54a", 0],
+    [5, 7, 0, 1, "#4cc3ff", 0],
+    [6, 1, 0, 1, "#4cc3ff", 0]
+  ]
+}`
+            },
+            {
+                id: 'phys-short-circuit',
+                category: 'phys',
+                badge: 'Elektro-Zanjir Sxema (.json)',
+                badgeStyle: 'bg-labgold/15 text-labgold border-labgold/35',
+                filename: 'qisqa-tutashuv-va-saqlagich.json',
+                title: 'Qisqa Tutashuv va Saqlagich Himoyasi Tajribasi',
+                desc: 'Zanjirda keskin tok oshganda saqlagich (predoxranitel) qanday kuyib zanjirni himoya qilishini 2D va 3D rejimda ko‘rsatuvchi sxema.',
+                code: `{
+  "v": 2,
+  "sc": 1,
+  "c": [
+    ["acc", -160, 0, 1, 1, 1, 0],
+    ["fuse", 0, -70, 0, 1, 1, 0],
+    ["sw", 0, 70, 0, 0, 0, 0]
+  ],
+  "w": [
+    [0, 2, 0, 1, "#ef5b5b", 0],
+    [3, 5, 0, 1, "#f0a54a", 0],
+    [4, 1, 0, 1, "#4cc3ff", 0]
+  ]
+}`
+            },
+            {
+                id: 'phys-220v-heavy-load',
+                category: 'phys',
+                badge: 'Elektro-Zanjir Sxema (.json)',
+                badgeStyle: 'bg-labgold/15 text-labgold border-labgold/35',
+                filename: '220v-generator-bolgarka-choynak.json',
+                title: '220V Generator: Bolgarka (850W) va Choynak (2000W)',
+                desc: 'Katta quvvatli iste’molchilar ulanganda ingichka sim qizib uzilishi va yo‘g‘on mis simning barqaror ishlashini solishtiruvchi 3D sxema.',
+                code: `{
+  "v": 2,
+  "sc": 1,
+  "c": [
+    ["gen", -200, 0, 1, 1, 1, 0],
+    ["kettle", 20, -70, 0, 0, 1, 0],
+    ["grind", 20, 70, 0, 0, 1, 0]
+  ],
+  "w": [
+    [0, 2, 0, 2, "#ef5b5b", 0],
+    [0, 4, 0, 2, "#ef5b5b", 0],
+    [3, 1, 0, 2, "#4cc3ff", 0],
+    [5, 1, 0, 2, "#4cc3ff", 0]
+  ]
+}`
+            }
+        ];
+
+        // =========================================================================
+        // 2. LABORATORIYA MODALLARI MA'LUMOTLARI
+        // =========================================================================
+        const LAB_DETAILS = {
+            physics: {
+                badge: 'Fizika • Elektro-Zanjir',
+                badgeClass: 'bg-labgold/20 text-labgold border border-labgold/40',
+                file: 'Batareya Creator V2 + 3D.html',
+                title: 'Elektro Zanjirlar Konstruktori (2D + 3D)',
+                desc: 'Ushbu modul faqat elektro-zanjir tuzilmalari ustida ishlash uchun mo‘ljallangan. Siz 2D to‘rda elementlarni joylashtirasiz, simlarning materialini (Mis, Alyuminiy, Nixrom) va kesim yuzasini tanlaysiz hamda bir tugma bilan butun sxemani real soyali 3D muhitga o‘tkazasiz.',
+                btnClass: 'bg-gradient-to-r from-labgold to-amber-500 text-slate-950',
+                features: [
+                    'Manbalar: Batareya, Akkumulyator, Quyosh paneli, 220V Generator',
+                    'Yuklamalar: Lampochka, LED, Motor, Bolgarka (850W), Choynak (2000W)',
+                    'Passiv va Boshqaruv: Rezistor, Reostat, Kondensator, Kalit, Diod, Saqlagich',
+                    'O‘lchov & Fizika: Voltmetr, Ampermetr, I = U/R, sim qizib uzilishi va 3D ko‘rinish'
+                ]
+            },
+            chemistry: {
+                badge: 'Kimyo • 3D Tajribalar',
+                badgeClass: 'bg-labgreen/20 text-labgreen border border-labgreen/40',
+                file: 'kimyo-labv4.html',
+                title: '3D Kimyoviy Tajribalar Laboratoriyasi',
+                desc: 'Ushbu modul faqat kimyoviy tajribalar o‘tkazishga ixtisoslashgan. Stakan, kolba va probirkalarga suyuq hamda kukun moddalarni soling, bir idishdan ikkinchisiga quying, 3D qurilmalar yordamida qizdiring yoki aralashtiring hamda pH o‘zgarishlarini kuzating.',
+                btnClass: 'bg-gradient-to-r from-labgreen to-emerald-400 text-slate-950',
+                features: [
+                    'Idishlar: Katta/Kichik stakan, Kolba, Probirka (va Extension idishlar)',
+                    'Moddalar: HCl, NaOH, Sirka, CuSO₄, AgNO₃, KI, H₂O₂, Zn, Mg, NaHCO₃, MnO₂',
+                    '3D Qurilmalar: Qizdirgich plita, Muz vannasi, Magnit aralashtirgich, UV lampa, Tarozi',
+                    'Kengaytma Tizimi: KL.extension (.js / .json) orqali yangi reaksiyalar o‘rnatish'
+                ]
+            }
+        };
+
+        let currentActiveLab = null;
+
+        // =========================================================================
+        // 3. 3D TILT EFFEKTI
+        // =========================================================================
+        function tiltCard(e, el) {
+            const rect = el.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const rotateX = ((y - rect.height / 2) / (rect.height / 2)) * -4;
+            const rotateY = ((x - rect.width / 2) / (rect.width / 2)) * 4;
+            el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.012, 1.012, 1.012)`;
+        }
+
+        function resetTilt(el) {
+            el.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+        }
+
+        // =========================================================================
+        // 4. LABORATORIYA MODALINI BOSHQARISH
+        // =========================================================================
+        function openLabModal(type) {
+            currentActiveLab = type;
+            const data = LAB_DETAILS[type];
+            if (!data) return;
+
+            const badge = document.getElementById('lm-badge');
+            badge.textContent = data.badge;
+            badge.className = `px-3 py-1 rounded-xl text-xs font-bold ${data.badgeClass}`;
+
+            document.getElementById('lm-file').textContent = data.file;
+            document.getElementById('lm-title').textContent = data.title;
+            document.getElementById('lm-desc').textContent = data.desc;
+
+            const featuresEl = document.getElementById('lm-features');
+            featuresEl.innerHTML = data.features.map(f => `
+                <div class="flex items-start gap-2 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                    <i class="fa-solid fa-check text-labblue mt-0.5"></i>
+                    <span>${f}</span>
+                </div>
+            `).join('');
+
+            const launchBtn = document.getElementById('lm-launch-btn');
+            launchBtn.className = `flex-1 py-3.5 px-5 rounded-2xl font-bold text-sm transition flex items-center justify-center gap-2 shadow-lg ${data.btnClass}`;
+
+            document.getElementById('lm-status-box').classList.add('hidden');
+
+            const modal = document.getElementById('lab-modal');
+            const box = document.getElementById('lab-modal-box');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                box.classList.remove('scale-95', 'opacity-0');
+                box.classList.add('scale-100', 'opacity-100');
+            }, 20);
+        }
+
+        function closeLabModal() {
+            const modal = document.getElementById('lab-modal');
+            const box = document.getElementById('lab-modal-box');
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+
+        function launchLabEnvironment() {
+            if (!currentActiveLab) return;
+            const data = LAB_DETAILS[currentActiveLab];
+            const statusBox = document.getElementById('lm-status-box');
+            const statusTitle = document.getElementById('lm-status-title');
+            const statusText = document.getElementById('lm-status-text');
+
+            statusBox.classList.remove('hidden');
+            statusTitle.textContent = `${data.file} ishga tushirilmoqda...`;
+            statusText.innerHTML = `Sizning loyiha papkangizdagi <strong class="text-white">${data.file}</strong> fayli ochilishga tayyor. Agar ushbu menyu sahifasini loyihalar bilan bitta papkaga joylashtirgan bo‘lsangiz, fayl avtomatik yuklanadi.`;
+
+            showToast(`${data.title}`, `${data.file} ishga tushirish buyrug‘i yuborildi`);
+        }
+
+        // =========================================================================
+        // 5. QO'SHIMCHA PAKETLAR KATALOGI MODALI, YUKLAB OLISH VA NUSXALASH
+        // =========================================================================
+        let currentPkgFilter = 'all';
+
+        function openPackagesModal() {
+            renderPackagesList(currentPkgFilter);
+            const modal = document.getElementById('pkg-modal');
+            const box = document.getElementById('pkg-modal-box');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                box.classList.remove('scale-95', 'opacity-0');
+                box.classList.add('scale-100', 'opacity-100');
+            }, 20);
+        }
+
+        function closePackagesModal() {
+            const modal = document.getElementById('pkg-modal');
+            const box = document.getElementById('pkg-modal-box');
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+
+        function filterPackages(cat) {
+            currentPkgFilter = cat;
+            ['all', 'chem', 'phys'].forEach(k => {
+                const btn = document.getElementById(`tab-pkg-${k}`);
+                if (!btn) return;
+                if (k === cat) {
+                    btn.className = 'pkg-tab px-3.5 py-1.5 rounded-xl text-xs font-bold bg-labblue text-white transition';
+                } else {
+                    btn.className = 'pkg-tab px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition';
+                }
+            });
+            renderPackagesList(cat);
+        }
+
+        function renderPackagesList(filter) {
+            const container = document.getElementById('pkg-list-container');
+            const items = filter === 'all' ? PACKAGES_DATA : PACKAGES_DATA.filter(p => p.category === filter);
+
+            container.innerHTML = items.map(pkg => `
+                <div class="bg-slate-900/85 border border-slate-800 hover:border-labblue/45 rounded-2xl p-4 flex flex-col justify-between gap-3.5 transition">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span class="px-2.5 py-0.5 rounded-lg border text-[11px] font-bold ${pkg.badgeStyle}">
+                                ${pkg.badge}
+                            </span>
+                            <span class="text-[11px] font-mono text-slate-400">${pkg.filename}</span>
+                        </div>
+                        <h4 class="font-display font-bold text-base text-white mb-1.5">${pkg.title}</h4>
+                        <p class="text-xs text-slate-400 leading-relaxed mb-3">${pkg.desc}</p>
+                        
+                        <!-- Kod oldindan ko'rish (qisqa) -->
+                        <pre class="bg-slate-950 border border-slate-800/90 rounded-xl p-2.5 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-24 leading-snug"><code>${escapeHtml(pkg.code)}</code></pre>
+                    </div>
+
+                    <!-- Yuklab olish va Nusxalash tugmalari -->
+                    <div class="flex items-center gap-2 pt-1">
+                        <button onclick="downloadPackageFile('${pkg.id}')"
+                                class="flex-1 py-2.5 px-3.5 rounded-xl bg-labblue hover:bg-blue-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Bepul yuklab olish</span>
+                        </button>
+                        <button onclick="copyPackageCode('${pkg.id}', this)"
+                                class="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Nusxalash</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function downloadPackageFile(pkgId) {
+            const pkg = PACKAGES_DATA.find(p => p.id === pkgId);
+            if (!pkg) return;
+
+            const mimeType = pkg.filename.endsWith('.json') ? 'application/json;charset=utf-8' : 'application/javascript;charset=utf-8';
+            const blob = new Blob([pkg.code], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = pkg.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('Fayl yuklab olindi!', `${pkg.filename} qurilmangizga saqlandi.`);
+        }
+
+        function copyPackageCode(pkgId, btnEl) {
+            const pkg = PACKAGES_DATA.find(p => p.id === pkgId);
+            if (!pkg) return;
+
+            const textarea = document.createElement('textarea');
+            textarea.value = pkg.code;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            try {
+                document.execCommand('copy');
+                const origHtml = btnEl.innerHTML;
+                btnEl.innerHTML = '<i class="fa-solid fa-check text-labgreen"></i> <span>Nusxalandi</span>';
+                setTimeout(() => { btnEl.innerHTML = origHtml; }, 2000);
+                showToast('Kod nusxalandi!', `${pkg.title} kodi buferga olindi.`);
+            } catch (err) {
+                showToast('Xatolik', 'Nusxalashning imkoni bo‘lmadi.');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        }
+
+        // =========================================================================
+        // 6. "TEZ ORADA" XABARDOR BO'LISH VA TOAST
+        // =========================================================================
+        function notifyFeature(featureName, btn) {
+            btn.innerHTML = '<i class="fa-solid fa-bell text-labgreen"></i> <span class="text-labgreen">Xabardor qilinasiz</span>';
+            btn.classList.add('border-labgreen/40', 'bg-labgreen/10');
+            showToast('Obuna faollashtirildi!', `«${featureName}» ishga tushganda sizga xabar beramiz.`);
+        }
+
+        let toastTimer = null;
+        function showToast(title, msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+
+            toast.classList.remove('hidden');
+            toast.classList.add('flex');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 15);
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                    toast.classList.remove('flex');
+                }, 300);
+            }, 3400);
+        }
+
+        // =========================================================================
+        // 7. MINI 3D VIZUALIZATSIYALAR (KARTOCHKALAR ICHIDA) VA 3D ORQA FON
+        // =========================================================================
+        function initMini3DPreviews() {
+            if (!window.THREE) return;
+
+            // 1. Elektro-Zanjir Mini 3D (Batareya + Rezistor + Lampochka halqasi)
+            const cPhys = document.getElementById('mini-3d-circuit');
+            if (cPhys) {
+                const w = cPhys.clientWidth || 320, h = cPhys.clientHeight || 176;
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
+                camera.position.set(0, 2.2, 4.8);
+                camera.lookAt(0, 0, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(w, h);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                cPhys.appendChild(renderer.domElement);
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                const pl = new THREE.PointLight(0xf0a54a, 1.4, 15);
+                pl.position.set(2, 4, 3);
+                scene.add(pl);
+
+                const grp = new THREE.Group();
+                // Batareya silindri
+                const bat = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.32, 0.32, 1.3, 20),
+                    new THREE.MeshStandardMaterial({ color: 0xf0a54a, metalness: 0.4, roughness: 0.3 })
+                );
+                bat.rotation.z = Math.PI / 2;
+                bat.position.set(-1.1, 0, 0.6);
+                grp.add(bat);
+
+                // Lampochka shari
+                const bulb = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.45, 24, 24),
+                    new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xf0a54a, emissiveIntensity: 0.75 })
+                );
+                bulb.position.set(1.1, 0.15, -0.4);
+                grp.add(bulb);
+
+                // Sim halqa
+                const wireRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(1.25, 0.045, 12, 48),
+                    new THREE.MeshStandardMaterial({ color: 0x4f8cff, metalness: 0.5 })
+                );
+                wireRing.rotation.x = Math.PI / 2;
+                grp.add(wireRing);
+
+                scene.add(grp);
+
+                window.addEventListener('resize', () => {
+                    if (!cPhys.clientWidth) return;
+                    camera.aspect = cPhys.clientWidth / cPhys.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(cPhys.clientWidth, cPhys.clientHeight);
+                });
+
+                (function animPhys() {
+                    requestAnimationFrame(animPhys);
+                    grp.rotation.y += 0.012;
+                    renderer.render(scene, camera);
+                })();
+            }
+
+            // 2. Kimyo Mini 3D (Shaffof Stakan + Rangli Eritma + Molekula pufakchalari)
+            const cChem = document.getElementById('mini-3d-chem');
+            if (cChem) {
+                const w = cChem.clientWidth || 320, h = cChem.clientHeight || 176;
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
+                camera.position.set(0, 1.6, 4.6);
+                camera.lookAt(0, 0.2, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(w, h);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                cChem.appendChild(renderer.domElement);
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+                const pl = new THREE.PointLight(0x4fd69a, 1.4, 15);
+                pl.position.set(-2, 4, 4);
+                scene.add(pl);
+
+                const grp = new THREE.Group();
+                // Shisha stakan
+                const glass = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.85, 0.85, 1.7, 28, 1, true),
+                    new THREE.MeshPhongMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+                );
+                grp.add(glass);
+
+                // Suyuqlik
+                const liquid = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.81, 0.81, 1.05, 24),
+                    new THREE.MeshPhongMaterial({ color: 0x4fd69a, transparent: true, opacity: 0.82 })
+                );
+                liquid.position.y = -0.3;
+                grp.add(liquid);
+
+                // Gaz pufakchalari
+                const bubbles = [];
+                for (let i = 0; i < 8; i++) {
+                    const b = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.08 + Math.random() * 0.06, 12, 12),
+                        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 })
+                    );
+                    b.position.set((Math.random() - 0.5) * 1.1, -0.5 + Math.random() * 1.4, (Math.random() - 0.5) * 1.1);
+                    grp.add(b);
+                    bubbles.push(b);
+                }
+
+                scene.add(grp);
+
+                window.addEventListener('resize', () => {
+                    if (!cChem.clientWidth) return;
+                    camera.aspect = cChem.clientWidth / cChem.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(cChem.clientWidth, cChem.clientHeight);
+                });
+
+                (function animChem() {
+                    requestAnimationFrame(animChem);
+                    grp.rotation.y -= 0.01;
+                    bubbles.forEach(b => {
+                        b.position.y += 0.015;
+                        if (b.position.y > 0.9) b.position.y = -0.6;
+                    });
+                    renderer.render(scene, camera);
+                })();
+            }
+        }
+
+        // Orqa fon 3D zarrachalar va elektr tugunlari tarmog'i
+        function initBackgroundNetwork() {
+            const canvas = document.getElementById('bg-canvas');
+            if (!window.THREE || !canvas) return;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 34;
+
+            const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const count = 90;
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            const palette = [
+                new THREE.Color(0x4f8cff), // Ko'k
+                new THREE.Color(0xf0a54a), // Oltin
+                new THREE.Color(0x4fd69a)  // Yashil
+            ];
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 76;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 56;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 35;
+
+                const c = palette[i % palette.length];
+                colors[i * 3] = c.r;
+                colors[i * 3 + 1] = c.g;
+                colors[i * 3 + 2] = c.b;
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const points = new THREE.Points(geo, new THREE.PointsMaterial({
+                size: 0.45,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.72
+            }));
+            scene.add(points);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            (function animateBg() {
+                requestAnimationFrame(animateBg);
+                points.rotation.y += 0.0007;
+                points.rotation.x += 0.0003;
+                renderer.render(scene, camera);
+            })();
+        }
+
+        window.onload = function() {
+            initMini3DPreviews();
+            initBackgroundNetwork();
+        };
+    </script>
+</body>
+</html>
